@@ -14,7 +14,7 @@ func main() {
     
     first := (*query_result)[0].(map[string]interface{})
 
-    s_result, err := api.GetSeason(first["nb"].(string))
+    s_result, err := api.GetSeasons(first["nb"].(string))
     if err != nil {
         fmt.Println(err);
         return

@@ -66,17 +66,12 @@ func Query(query string, page_number int, genre string) (*[]interface{}, error) 
     return &result, nil
 }
 
-func GetSeason(id string) (*[]interface{}, error) {
+func GetSeasons(id string) (*[]interface{}, error) {
     aurl := fmt.Sprintf("%s/videoSeason/id/%s", API_URL, id)
 
     resp, err := get(aurl)
     if err != nil {
         return nil, err
-    }
-
-    if resp.StatusCode > 299 {
-        return nil, fmt.Errorf("Get request to `%s` returned status %d",
-        aurl, resp.StatusCode)
     }
 
     defer resp.Body.Close()

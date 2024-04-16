@@ -55,6 +55,61 @@ func pickSeason(seasonsView []string) string {
     return chosenSeason
 }
 
+func pickReso(id string) (string, string, string, error) {
+    //TODO: Ask for subtitles if not present
+    vids, sub, err := api.GetMedia(id)
+    checkErr(err)
+
+    arSubtitles := sub["arTranslationFilePath"].(string)
+    enSubtitles := sub["enTranslationFilePath"].(string)
+
+    // For some reason cinemana provides `defaultImages/loading.gif`
+    // when no subtitles are present.
+    // Therefore to be sure I check *File instead of *Path:
+    if sub["arTranslationFile"] == "" {
+        arSubtitles = ""
+    }
+    if sub["enTranslationFile"] == "" {
+        enSubtitles = ""
+    }
+
+    resolutionView := make([]string, len(vids)+1)
+    resolutionView[0] = "<<<"
+    for i, r := range vids {
+        rM := r.(map[string]interface{})
+        resolutionView[i+1] = rM["resolution"].(string)
+    }
+
+    var chosenRes string
+
+    resoForm := huh.NewForm(
+        huh.NewGroup(
+            huh.NewSelect[string]().
+            Options(huh.NewOptions(resolutionView...)...).
+            Title("Pick a resolution").
+            Value(&chosenRes),
+        ),
+    )
+
+    err = resoForm.Run()
+    checkErr(err)
+
+    if chosenRes == "<<<" {
+        return "", "", "", errors.New("<<<")
+    }
+
+    var vidUrl string
+
+    for _, r := range vids {
+        rM := r.(map[string]interface{})
+        if chosenRes == rM["resolution"].(string) {
+            vidUrl = rM["videoUrl"].(string)
+        }
+    }
+
+    return arSubtitles, enSubtitles, vidUrl, nil
+}
+
 func play(ar string, en string, vid string) {
     var para []string  
 
@@ -103,7 +158,7 @@ func main() {
 
                 return nil
             }).
-            Description("Examples: one piece, jojo, black mirror"),
+            Description("Examples: one piece, jojo, mad god"),
         ),
     )
 
@@ -119,7 +174,6 @@ func main() {
         mediaType = api.SERIES
     }
 
-    // var chosen int
     query = strings.Trim(query, " ")
 
     var chosenMedia string
@@ -181,6 +235,13 @@ func main() {
     }
 
     if mediaType == api.MOVIES {
+        arSubtitles, enSubtitles, vidUrl, err := pickReso(mediaID)
+
+        if err != nil {
+            main()
+        }
+
+        play(arSubtitles, enSubtitles, vidUrl)
     } else {
         result, err := api.GetSeasons(mediaID)
         checkErr(err)
@@ -232,56 +293,11 @@ func main() {
             if err != nil {
                 panic(err)
             }
-            
-            //TODO: Ask for subtitles if not present
-            vids, sub, err := api.GetMedia(seasons[chosenSeason][chosenEpisode])
-            checkErr(err)
 
-            arSubtitles := sub["arTranslationFilePath"].(string)
-            enSubtitles := sub["enTranslationFilePath"].(string)
+            arSubtitles, enSubtitles, vidUrl, err := pickReso(seasons[chosenSeason][chosenEpisode-1])
 
-            // For some reason cinemana provides `defaultImages/loading.gif`
-            // when no subtitles are pesent.
-            // Therefore to be sure I check *File instead of *Path:
-            if sub["arTranslationFile"] == "" {
-                arSubtitles = ""
-            }
-            if sub["enTranslationFile"] == "" {
-                enSubtitles = ""
-            }
-
-            resolutionView := make([]string, len(vids)+1)
-            resolutionView[0] = "<<<"
-            for i, r := range vids {
-                rM := r.(map[string]interface{})
-                resolutionView[i+1] = rM["resolution"].(string)
-            }
-
-            var chosenRes string
-
-            resoForm := huh.NewForm(
-                huh.NewGroup(
-                    huh.NewSelect[string]().
-                    Options(huh.NewOptions(resolutionView...)...).
-                    Title("Pick a resolution").
-                    Value(&chosenRes),
-                ),
-            )
-            
-            err = resoForm.Run()
-            checkErr(err)
-
-            if chosenRes == "<<<" {
+            if err != nil {
                 continue
-            }
-
-            var vidUrl string
-
-            for _, r := range vids {
-                rM := r.(map[string]interface{})
-                if chosenRes == rM["resolution"].(string) {
-                    vidUrl = rM["videoUrl"].(string)
-                }
             }
 
             play(arSubtitles, enSubtitles, vidUrl)

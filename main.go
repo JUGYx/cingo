@@ -129,15 +129,11 @@ func play(ar string, en string, vid string) {
     }
 }
 
-func main() {
+func queryForm() (string, string) {
     var mediaType string
     var query string
 
-    homeForm := huh.NewForm(
-		huh.NewGroup(huh.NewNote().
-			Title("Cinemana").
-			Description("* Client requires mpv to work (mpv.io)\n* Ctrl-c to quit")),
-
+    form := huh.NewForm(
         huh.NewGroup(
             huh.NewSelect[string]().
             Options(huh.NewOptions("Movies", "Shows")...).
@@ -162,145 +158,173 @@ func main() {
         ),
     )
 
-    err := homeForm.Run()
+    err := form.Run()
     checkErr(err)
-
-    pageNumber := 0
-
-    // No, I won't ask the user whether they want movies or series and use that
-    if mediaType == "Movies" {
-        mediaType = api.MOVIES
-    } else {
-        mediaType = api.SERIES
-    }
 
     query = strings.Trim(query, " ")
 
-    var chosenMedia string
-    var mediaID string
+    return mediaType, query
+}
 
-    var listView []string
+func main() {
+    noteForm := huh.NewForm(
+        huh.NewGroup(huh.NewNote().
+        Title("Cinemana").
+        Description("* Client requires mpv to work (mpv.io)\n* Ctrl-c to quit")),
+    )
 
-    for {
-        result, err := api.Query(query, pageNumber, mediaType)
-        checkErr(err)
+    err := noteForm.Run()
+    checkErr(err)
 
-        list := prepareList(result)
-    
-        listView = make([]string, len(list)+2)
-        i := 0
-    
-        listView[i] = "<<<"
+    queryFor: for {
+        mediaType, query := queryForm()
 
-        i++
+        pageNumber := 0
 
-        for k := range list {
-            listView[i] = k
-            i++
-        }
-        listView[i] = "..."
-
-        listForm := huh.NewForm(
-            huh.NewGroup(
-                huh.NewSelect[string]().
-                Options(huh.NewOptions(listView...)...).
-                Title("Pick your media").
-                Validate(func(s string) error {
-                    if s == "<<<" && pageNumber < 1 {
-                        return errors.New("Cannot go back")
-                    }
-
-                    return nil
-                }).
-                Value(&chosenMedia),
-            ),
-        )
-
-        err = listForm.Run()
-        checkErr(err)
-
-        if chosenMedia == "..." {
-            pageNumber++
-            continue
+        // No, I won't ask the user whether they want movies or series and use that
+        if mediaType == "Movies" {
+            mediaType = api.MOVIES
+        } else {
+            mediaType = api.SERIES
         }
 
-        if chosenMedia == "<<<" {
-            pageNumber--
-            continue
-        }
-
-        mediaID = list[chosenMedia]
-
-        break
-    }
-
-    if mediaType == api.MOVIES {
-        arSubtitles, enSubtitles, vidUrl, err := pickReso(mediaID)
-
-        if err != nil {
-            main()
-        }
-
-        play(arSubtitles, enSubtitles, vidUrl)
-    } else {
-        result, err := api.GetSeasons(mediaID)
-        checkErr(err)
-
-        seasons := make(map[string][]string)
-
-        for _, item := range result {
-            itemM := item.(map[string]interface{})
-            seasons[itemM["season"].(string)] = append(seasons[itemM["season"].(string)],
-            itemM["nb"].(string))
-        }
-
-        seasonsView := make([]string, len(seasons))
-        i := 0
-        for k := range seasons {
-            seasonsView[i] = k
-            i++
-        }
-        slices.Sort(seasonsView)
-        chosenSeason := pickSeason(seasonsView)
-       
-        var chosenEpisode string
+        var chosenMedia string
+        var mediaID string
+        var listView []string
 
         for {
-            episodeView := make([]string, len(seasons[chosenSeason])+1)
-            episodeView[0] = "<<<"
-            for i := range seasons[chosenSeason] {
-                episodeView[i+1] = strconv.Itoa(i+1)
-            }
+            result, err := api.Query(query, pageNumber, mediaType)
+            checkErr(err)
 
-            form := huh.NewForm(
+            list := prepareList(result)
+
+            listView = make([]string, len(list)+2)
+            i := 0
+
+            listView[i] = "<<<"
+
+            i++
+
+            for k := range list {
+                listView[i] = k
+                i++
+            }
+            listView[i] = "..."
+
+            listForm := huh.NewForm(
                 huh.NewGroup(
                     huh.NewSelect[string]().
-                    Options(huh.NewOptions(episodeView...)...).
-                    Title("Pick an episode").
-                    Value(&chosenEpisode),
+                    Options(huh.NewOptions(listView...)...).
+                    Title("Pick your media").
+                    Validate(func(s string) error {
+                        if s == "<<<" && pageNumber < 1 {
+                            return errors.New("No pages further back")
+                        }
+
+                        return nil
+                    }).
+                    Value(&chosenMedia),
                 ),
             )
 
-            err := form.Run()
+            err = listForm.Run()
             checkErr(err)
 
-            if chosenEpisode == "<<<" {
-                chosenSeason = pickSeason(seasonsView)
+            if chosenMedia == "..." {
+                pageNumber++
                 continue
             }
 
-            chosenEpisode, err := strconv.Atoi(chosenEpisode)
-            if err != nil {
-                panic(err)
+            if chosenMedia == "<<<" {
+                pageNumber--
+                continue
             }
 
-            arSubtitles, enSubtitles, vidUrl, err := pickReso(seasons[chosenSeason][chosenEpisode-1])
+            mediaID = list[chosenMedia]
+
+            break
+        }
+
+        if mediaType == api.MOVIES {
+            arSubtitles, enSubtitles, vidUrl, err := pickReso(mediaID)
 
             if err != nil {
-                continue
+                continue queryFor
             }
 
             play(arSubtitles, enSubtitles, vidUrl)
+        } else {
+            seasonFor: for {
+                result, err := api.GetSeasons(mediaID)
+                checkErr(err)
+
+                seasons := make(map[string][]string)
+
+                for _, item := range result {
+                    itemM := item.(map[string]interface{})
+                    seasons[itemM["season"].(string)] = append(seasons[itemM["season"].(string)],
+                    itemM["nb"].(string))
+                }
+
+                seasonsView := make([]string, len(seasons)+1)
+                i := 0
+
+                seasonsView[i] = "<<<"
+
+                i++
+
+                for k := range seasons {
+                    seasonsView[i] = k
+                    i++
+                }
+                slices.Sort(seasonsView[1:])
+                chosenSeason := pickSeason(seasonsView)
+
+                if chosenSeason == "<<<" {
+                    continue queryFor
+                }
+
+                var chosenEpisode string
+
+                for {
+                    episodeView := make([]string, len(seasons[chosenSeason])+1)
+                    episodeView[0] = "<<<"
+                    for i := range seasons[chosenSeason] {
+                        episodeView[i+1] = strconv.Itoa(i+1)
+                    }
+
+                    form := huh.NewForm(
+                        huh.NewGroup(
+                            huh.NewSelect[string]().
+                            Options(huh.NewOptions(episodeView...)...).
+                            Title("Pick an episode").
+                            Value(&chosenEpisode),
+                        ),
+                    )
+
+                    err := form.Run()
+                    checkErr(err)
+
+                    if chosenEpisode == "<<<" {
+                        continue seasonFor
+                    }
+
+                    chosenEpisode, err := strconv.Atoi(chosenEpisode)
+                    if err != nil {
+                        panic(err)
+                    }
+
+                    arSubtitles, enSubtitles, vidUrl, err := pickReso(seasons[chosenSeason][chosenEpisode-1])
+
+                    if err != nil {
+                        continue
+                    }
+
+                    play(arSubtitles, enSubtitles, vidUrl)
+                }
+
+                break
+            }
         }
     }
 }

@@ -216,13 +216,6 @@ func main() {
                     huh.NewSelect[string]().
                     Options(huh.NewOptions(listView...)...).
                     Title("Pick your media").
-                    Validate(func(s string) error {
-                        if s == "<<<" && pageNumber < 1 {
-                            return errors.New("No pages further back")
-                        }
-
-                        return nil
-                    }).
                     Value(&chosenMedia),
                 ),
             )
@@ -233,6 +226,10 @@ func main() {
             if chosenMedia == "..." {
                 pageNumber++
                 continue
+            }
+
+            if chosenMedia == "<<<" && pageNumber < 1 {
+                continue queryFor
             }
 
             if chosenMedia == "<<<" {

@@ -10,6 +10,9 @@ import (
 
 const API_URL = "https://cinemana.shabakaty.com/api/android"
 
+const MOVIES = "movies"
+const SERIES = "series"
+
 func get(gurl string) (*http.Response, error) {
     client := &http.Client{
         CheckRedirect: nil,
@@ -39,7 +42,7 @@ func get(gurl string) (*http.Response, error) {
     return resp, err
 }
 
-func Query(query string, page_number int, genre string) (*[]interface{}, error) {
+func Query(query string, page_number int, genre string) ([]interface{}, error) {
     query = url.QueryEscape(query)
     aurl := fmt.Sprintf("%s/AdvancedSearch?level=0&videoTitle=%s&staffTitle=%s&page=%d&type=%s&", API_URL, query, query, page_number, genre)
 
@@ -63,10 +66,10 @@ func Query(query string, page_number int, genre string) (*[]interface{}, error) 
         return nil, err
     }
 
-    return &result, nil
+    return result, nil
 }
 
-func GetSeasons(id string) (*[]interface{}, error) {
+func GetSeasons(id string) ([]interface{}, error) {
     aurl := fmt.Sprintf("%s/videoSeason/id/%s", API_URL, id)
 
     resp, err := get(aurl)
@@ -89,10 +92,10 @@ func GetSeasons(id string) (*[]interface{}, error) {
         return nil, err
     }
 
-    return &result, nil
+    return result, nil
 }
 
-func GetMedia(id string) (*[]interface{}, *map[string]interface{}, error) {
+func GetMedia(id string) ([]interface{}, map[string]interface{}, error) {
     vid_aurl := fmt.Sprintf("%s/transcoddedFiles/id/%s", API_URL, id)
     sub_aurl := fmt.Sprintf("%s/allVideoInfo/id/%s", API_URL, id)
 
@@ -126,13 +129,13 @@ func GetMedia(id string) (*[]interface{}, *map[string]interface{}, error) {
     sub_bytes, err := io.ReadAll(sub_resp.Body)
 
     if err != nil {
-        return &vid_result, nil, err
+        return vid_result, nil, err
     }
 
     err = json.Unmarshal(sub_bytes, &sub_result)
     if err != nil {
-        return &vid_result, nil, err
+        return vid_result, nil, err
     }
 
-    return &vid_result, &sub_result, nil
+    return vid_result, sub_result, nil
 }
